@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Motor Claims Leakage & Loss-Ratio Monitor</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--tx:#14213d;--mut:#667085;--ac:#0b7a75;--ac2:#e07a1f;--bd:#e3e6eb;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1621;--card:#16212f;--tx:#e8edf3;--mut:#93a1b3;--ac:#2dc4bb;--ac2:#f0a04b;--bd:#243245}}
+:root[data-theme="dark"]{--bg:#0e1621;--card:#16212f;--tx:#e8edf3;--mut:#93a1b3;--ac:#2dc4bb;--ac2:#f0a04b;--bd:#243245}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.w{max-width:1100px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:1.45rem;margin:0}.sub{color:var(--mut);font-size:.88rem;margin:4px 0 16px}
+.bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+select{background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;font-size:.9rem}
+.k{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.c{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px}
+.k .c b{display:block;font-size:1.4rem;margin-top:4px}.k .c span{color:var(--mut);font-size:.78rem;text-transform:uppercase;letter-spacing:.04em}
+.g{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:10px}
+.c h2{font-size:.95rem;margin:0 0 10px}.ch{position:relative;height:240px}
+ul{margin:0;padding-left:18px;line-height:1.6;font-size:.92rem}
+.n{color:var(--mut);font-size:.76rem;margin-top:16px;line-height:1.5}
+</style></head><body><div class="w">
+<h1>Motor Claims Leakage &amp; Loss-Ratio Monitor</h1>
+<p class="sub">Interactive dashboard · 6,000 motor claims · 6 regions · 2023–2025 · values in USD</p>
+<div class="bar"><select id="r"></select><select id="cs"></select></div>
+<div class="k" id="k"></div>
+<div class="g">
+<div class="c"><h2>Quarterly claims paid &amp; loss ratio</h2><div class="ch"><canvas id="a"></canvas></div></div>
+<div class="c"><h2>Loss ratio by region (all causes)</h2><div class="ch"><canvas id="b"></canvas></div></div>
+<div class="c"><h2>Paid losses by cause</h2><div class="ch"><canvas id="d"></canvas></div></div>
+<div class="c"><h2>Suspected-fraud rate by cause</h2><div class="ch"><canvas id="e"></canvas></div></div>
+</div>
+<div class="c" style="margin-top:10px"><h2>Key findings</h2><ul>__INSIGHTS__</ul></div>
+<p class="n">Data note: dataset is synthetic, modelled on a typical vehicle-insurance claims schema, built for portfolio demonstration. Loss ratio = claims paid ÷ earned premium (shown when no cause filter is applied). Fraud = flagged as suspected, not confirmed.</p>
+</div>
+<script>
+const D=__DATA__,A=D.A,P=D.P,$=i=>document.getElementById(i);
+const fm=n=>n>=1e6?'$'+(n/1e6).toFixed(2)+'M':n>=1e3?'$'+Math.round(n/1e3)+'K':'$'+n;
+$('r').innerHTML='<option value="-1">All regions</option>'+D.R.map((x,i)=>`<option value="${i}">${x}</option>`).join('');
+$('cs').innerHTML='<option value="-1">All causes</option>'+D.C.map((x,i)=>`<option value="${i}">${x}</option>`).join('');
+const col=['#0b7a75','#e07a1f','#5b6ee1','#c2415d','#8a9a5b'];
+const ch={};
+function mk(id,cfg){const s=getComputedStyle(document.documentElement);Chart.defaults.color=s.getPropertyValue('--mut').trim();Chart.defaults.borderColor=s.getPropertyValue('--bd').trim();cfg.options=Object.assign({responsive:true,maintainAspectRatio:false},cfg.options||{});ch[id]=new Chart($(id),cfg)}
+const sum=(a,i)=>a.reduce((s,x)=>s+x[i],0);
+function upd(){
+ const rf=+$('r').value,cf=+$('cs').value;
+ const rows=A.filter(a=>(rf<0||a[1]==rf)&&(cf<0||a[2]==cf)),pm=P.filter(p=>rf<0||p[1]==rf);
+ const n=sum(rows,3),paid=sum(rows,4),prem=sum(pm,2),lrOk=cf<0;
+ $('k').innerHTML=[['Claims',n.toLocaleString()],['Claims paid',fm(paid)],['Loss ratio',lrOk?(paid/prem*100).toFixed(1)+'%':'n/a'],
+  ['Avg days to settle',(sum(rows,7)/n).toFixed(1)],['Suspected fraud',(sum(rows,5)/n*100).toFixed(1)+'%'],['Fraud leakage',fm(sum(rows,6))]]
+  .map(x=>`<div class="c"><span>${x[0]}</span><b>${x[1]}</b></div>`).join('');
+ const qp=D.Q.map((_,q)=>sum(rows.filter(a=>a[0]==q),4)),ql=D.Q.map((_,q)=>lrOk?+(qp[q]/sum(pm.filter(p=>p[0]==q),2)*100).toFixed(1):null);
+ const rlr=D.R.map((_,r)=>+(sum(A.filter(a=>a[1]==r),4)/sum(P.filter(p=>p[1]==r),2)*100).toFixed(1));
+ const cp=D.C.map((_,c)=>sum(rows.filter(a=>a[2]==c),4)),cf2=D.C.map((_,c)=>{const x=rows.filter(a=>a[2]==c),m=sum(x,3);return m?+(sum(x,5)/m*100).toFixed(1):0});
+ if(!ch.a){
+  mk('a',{data:{labels:D.Q,datasets:[{type:'bar',label:'Paid',data:qp,backgroundColor:col[0],yAxisID:'y'},{type:'line',label:'Loss ratio %',data:ql,borderColor:col[1],backgroundColor:col[1],yAxisID:'y1',tension:.3}]},options:{scales:{y:{ticks:{callback:v=>fm(v)}},y1:{position:'right',grid:{drawOnChartArea:false}}}}});
+  mk('b',{type:'bar',data:{labels:D.R,datasets:[{label:'Loss ratio %',data:rlr,backgroundColor:col[1]}]},options:{indexAxis:'y',plugins:{legend:{display:false}}}});
+  mk('d',{type:'doughnut',data:{labels:D.C,datasets:[{data:cp,backgroundColor:col,borderWidth:0}]},options:{plugins:{legend:{position:'right'}}}});
+  mk('e',{type:'bar',data:{labels:D.C,datasets:[{label:'Fraud %',data:cf2,backgroundColor:col[3]}]},options:{plugins:{legend:{display:false}}}});
+ }else{
+  ch.a.data.datasets[0].data=qp;ch.a.data.datasets[1].data=ql;ch.d.data.datasets[0].data=cp;ch.e.data.datasets[0].data=cf2;
+  ['a','d','e'].forEach(k=>ch[k].update());
+ }
+}
+$('r').onchange=$('cs').onchange=upd;upd();
+</script></body></html>
